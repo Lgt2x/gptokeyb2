@@ -3,7 +3,7 @@ name: gptokeyb2 Build
 on:
   workflow_dispatch:
   push:
-    branches: [ "*" ]
+    branches: [ "master" ]
     paths-ignore:
       - '**/README.md'
   pull_request:
@@ -23,8 +23,10 @@ jobs:
         arch: 
           - name: arm64
             cross: aarch64-linux-gnu
+            executable:
           - name: armhf
             cross: arm-linux-gnueabihf
+            executable: armhf
 
     steps:
       - name: Install ${{ matrix.arch.name }} dependencies
@@ -42,10 +44,19 @@ jobs:
           mkdir build && cd build
           cmake ../ -GNinja -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/debian-${{ matrix.arch.name }}-gcc-toolchain.cmake -DCMAKE_BUILD_TYPE=Release
           cmake --build .
+        
+      - name: Prepare export
+        run: |
+          patchelf --replace-needed libinterpose.so libinterpose.${{ matrix.arch.executable }}.so gptokeyb2
+          patchelf --set-soname libinterpose.${{ matrix.arch.executable }}.so lib/libinterpose.so
+          mv lib/libinterpose.so libinterpose.${{ matrix.arch.executable }}.so
           /usr/${{ matrix.arch.cross }}/bin/strip gptokeyb2
+          mv gptokeyb2 gptokeyb2.${{ matrix.arch.executable }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: gptokeyb2_${{ matrix.arch.name }}
-          path: ${{ github.workspace }}/build/gptokeyb2
+          path: |
+            ${{ github.workspace }}/build/gptokeyb2.${{ matrix.arch.executable }}
+            ${{ github.workspace }}/build/libinterpose.${{ matrix.arch.executable }}
